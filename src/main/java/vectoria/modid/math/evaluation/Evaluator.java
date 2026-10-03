@@ -9,6 +9,7 @@ import vectoria.modid.math.expression.UnaryExpression;
 import vectoria.modid.math.expression.VariableExpression;
 
 import java.util.Map;
+import java.util.function.DoubleUnaryOperator;
 
 public class Evaluator {
 
@@ -76,7 +77,10 @@ public class Evaluator {
             UnaryExpression expression,
             Map<String, Double> variables
     ) {
-        double value = evaluate(expression.operand(), variables);
+        double value = evaluate(
+                expression.operand(),
+                variables
+        );
 
         return switch (expression.operator()) {
             case NEGATE -> -value;
@@ -118,9 +122,14 @@ public class Evaluator {
             case "cos" -> unary(name, arguments, Math::cos);
             case "tan" -> unary(name, arguments, Math::tan);
 
-            case "cot" -> 1.0 / unary(name, arguments, Math::tan);
-            case "sec" -> 1.0 / unary(name, arguments, Math::cos);
-            case "csc" -> 1.0 / unary(name, arguments, Math::sin);
+            case "cot" ->
+                    1.0 / unary(name, arguments, Math::tan);
+
+            case "sec" ->
+                    1.0 / unary(name, arguments, Math::cos);
+
+            case "csc" ->
+                    1.0 / unary(name, arguments, Math::sin);
 
             case "asin", "arcsin" ->
                     unary(name, arguments, Math::asin);
@@ -176,14 +185,14 @@ public class Evaluator {
         }
 
         throw new IllegalArgumentException(
-                "\\log expects one argument or a base and argument."
+                "\\log expects one argument or two arguments."
         );
     }
 
     private double evaluateRoot(double[] arguments) {
         if (arguments.length != 2) {
             throw new IllegalArgumentException(
-                    "Root expects a value and an index."
+                    "\\sqrt with an index expects two arguments."
             );
         }
 
@@ -196,7 +205,7 @@ public class Evaluator {
     private double unary(
             String name,
             double[] arguments,
-            java.util.function.DoubleUnaryOperator function
+            DoubleUnaryOperator function
     ) {
         if (arguments.length != 1) {
             throw new IllegalArgumentException(

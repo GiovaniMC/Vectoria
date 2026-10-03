@@ -10,7 +10,7 @@ import java.util.Map;
 public class LexerTest {
 
     public static void main(String[] args) {
-        String input = "\\pi r^2";
+        String input = "\"ab\"";
 
         Lexer lexer = new Lexer(input);
         Parser parser = new Parser(lexer.tokenize());
@@ -21,8 +21,9 @@ public class LexerTest {
 
         double result = evaluator.evaluate(
                 expression,
-                Map.of("r", 2.0)
+                Map.of("a",3.0,"b",4.0)
         );
+
 
         System.out.println(expression);
         System.out.println(result);
