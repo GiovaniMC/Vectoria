@@ -1,4 +1,4 @@
-package vectoria.modid.math;
+package vectoria.modid.math.lexer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,8 +27,13 @@ public class Lexer {
                 continue;
             }
 
-            if (Character.isLetter(current) || current == '_') {
+            if (Character.isLetter(current)) {
                 tokens.add(readIdentifier());
+                continue;
+            }
+
+            if (current == '\\') {
+                tokens.add(readCommand());
                 continue;
             }
 
@@ -58,6 +63,21 @@ public class Lexer {
                     position++;
                     break;
 
+                case '%':
+                    tokens.add(new Token(TokenType.MODULO, "%"));
+                    position++;
+                    break;
+
+                case '!':
+                    tokens.add(new Token(TokenType.FACTORIAL, "!"));
+                    position++;
+                    break;
+
+                case '_':
+                    tokens.add(new Token(TokenType.UNDERSCORE, "_"));
+                    position++;
+                    break;
+
                 case '(':
                     tokens.add(new Token(TokenType.LEFT_PAREN, "("));
                     position++;
@@ -65,6 +85,26 @@ public class Lexer {
 
                 case ')':
                     tokens.add(new Token(TokenType.RIGHT_PAREN, ")"));
+                    position++;
+                    break;
+
+                case '{':
+                    tokens.add(new Token(TokenType.LEFT_BRACE, "{"));
+                    position++;
+                    break;
+
+                case '}':
+                    tokens.add(new Token(TokenType.RIGHT_BRACE, "}"));
+                    position++;
+                    break;
+
+                case '[':
+                    tokens.add(new Token(TokenType.LEFT_BRACKET, "["));
+                    position++;
+                    break;
+
+                case ']':
+                    tokens.add(new Token(TokenType.RIGHT_BRACKET, "]"));
                     position++;
                     break;
 
@@ -100,7 +140,8 @@ public class Lexer {
 
                 default:
                     throw new IllegalArgumentException(
-                            "Unexpected character: '" + current + "' at position " + position
+                            "Unexpected character: '" + current
+                                    + "' at position " + position
                     );
             }
         }
@@ -126,12 +167,14 @@ public class Lexer {
         }
 
         if (position < input.length()
-                && (input.charAt(position) == 'e' || input.charAt(position) == 'E')) {
+                && (input.charAt(position) == 'e'
+                || input.charAt(position) == 'E')) {
 
             position++;
 
             if (position < input.length()
-                    && (input.charAt(position) == '+' || input.charAt(position) == '-')) {
+                    && (input.charAt(position) == '+'
+                    || input.charAt(position) == '-')) {
                 position++;
             }
 
@@ -161,22 +204,41 @@ public class Lexer {
     }
 
     private Token readIdentifier() {
-        int start = position;
-
-        while (position < input.length()) {
-            char current = input.charAt(position);
-
-            if (Character.isLetterOrDigit(current) || current == '_') {
-                position++;
-            } else {
-                break;
-            }
-        }
+        char character = input.charAt(position);
+        position++;
 
         return new Token(
                 TokenType.IDENTIFIER,
-                input.substring(start, position)
+                String.valueOf(character)
         );
+    }
+
+    private Token readCommand() {
+        int start = position;
+
+        position++;
+
+        if (position >= input.length()
+                || !Character.isLetter(input.charAt(position))) {
+            throw new IllegalArgumentException(
+                    "Invalid LaTeX command at position " + start
+            );
+        }
+
+        int commandStart = position;
+
+        while (position < input.length()
+                && Character.isLetter(input.charAt(position))) {
+            position++;
+        }
+
+        String command = input.substring(commandStart, position);
+
+        if (command.equals("cdot")) {
+            return new Token(TokenType.MULTIPLY, "\\cdot");
+        }
+
+        return new Token(TokenType.COMMAND, command);
     }
 
     private boolean peek(char expected) {
