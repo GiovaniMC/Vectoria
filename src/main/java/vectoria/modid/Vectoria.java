@@ -15,6 +15,7 @@ public class Vectoria implements ModInitializer {
 	public void onInitialize() {
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
 			VectoriaCommand.register(dispatcher);
+
 		});
 		LOGGER.info("Vectoria math engine initialized successfully.");
 	}

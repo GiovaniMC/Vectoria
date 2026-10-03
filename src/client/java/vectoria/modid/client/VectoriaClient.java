@@ -2,7 +2,7 @@ package vectoria.modid.client;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-
+import vectoria.modid.client.gui.VectoriaScreen;
 
 public class VectoriaClient implements ClientModInitializer {
 	@Override
