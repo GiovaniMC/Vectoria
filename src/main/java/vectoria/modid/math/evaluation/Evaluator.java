@@ -8,227 +8,258 @@ import vectoria.modid.math.expression.NumberExpression;
 import vectoria.modid.math.expression.UnaryExpression;
 import vectoria.modid.math.expression.VariableExpression;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.function.DoubleUnaryOperator;
+import java.util.Set;
 
 public class Evaluator {
 
-    public double evaluate(
-            Expression expression,
-            Map<String, Double> variables
-    ) {
-        if (expression instanceof NumberExpression number) {
+    private static final Set<String> UNARY_FUNCTIONS = Set.of(
+            "sin", "cos", "tan", "cot", "sec", "csc",
+            "asin", "acos", "atan", "arcsin", "arccos", "arctan",
+            "sinh", "cosh", "tanh",
+            "ln", "exp", "sqrt", "abs"
+    );
+
+    public double evaluate(Expression expr, Map<String, Double> vars) {
+        if (expr instanceof NumberExpression number) {
             return number.value();
         }
-
-        if (expression instanceof VariableExpression variable) {
-            Double value = variables.get(variable.name());
-
-            if (value == null) {
-                throw new IllegalArgumentException(
-                        "Variable '" + variable.name() + "' has no value."
-                );
-            }
-
-            return value;
+        if (expr instanceof VariableExpression variable) {
+            Double value = vars.get(variable.name());
+            if (value != null) return value;
+            Double named = namedConstant(variable.name());
+            if (named != null) return named;
+            throw new RuntimeException("Undefined variable: " + variable.name());
+        }
+        if (expr instanceof ConstantExpression constantExpr) {
+            Double named = namedConstant(constantExpr.name());
+            if (named == null) throw new RuntimeException("Unknown constant: " + constantExpr.name());
+            return named;
+        }
+        if (expr instanceof BinaryExpression binary) {
+            double left = evaluate(binary.left(), vars);
+            double right = evaluate(binary.right(), vars);
+            return switch (binary.operator()) {
+                case ADD -> left + right;
+                case SUBTRACT -> left - right;
+                case MULTIPLY -> left * right;
+                case DIVIDE -> {
+                    if (right == 0.0) throw new MathDomainException("Division by zero");
+                    yield left / right;
+                }
+                case POWER -> Math.pow(left, right);
+            };
+        }
+        if (expr instanceof UnaryExpression unary) {
+            double value = evaluate(unary.operand(), vars);
+            return switch (unary.operator()) {
+                case NEGATE -> -value;
+                case PERCENT -> value / 100.0;
+                case FACTORIAL -> factorial(value);
+            };
+        }
+        if (expr instanceof FunctionExpression function) {
+            return evaluateFunction(function, vars);
         }
 
-        if (expression instanceof ConstantExpression constant) {
-            return evaluateConstant(constant);
-        }
-
-        if (expression instanceof UnaryExpression unary) {
-            return evaluateUnary(unary, variables);
-        }
-
-        if (expression instanceof BinaryExpression binary) {
-            return evaluateBinary(binary, variables);
-        }
-
-        if (expression instanceof FunctionExpression function) {
-            return evaluateFunction(function, variables);
-        }
-
-        throw new IllegalArgumentException(
-                "Unknown expression: " + expression
-        );
+        throw new RuntimeException("Unknown expression type: " + (expr != null ? expr.getClass().getName() : "null"));
     }
 
-    private double evaluateConstant(ConstantExpression constant) {
-        return switch (constant.name()) {
-            case "pi" -> Math.PI;
-            case "e" -> Math.E;
-            case "phi" -> (1.0 + Math.sqrt(5.0)) / 2.0;
-            case "tau" -> 2.0 * Math.PI;
-
-            case "infty" ->
-                    throw new IllegalArgumentException(
-                            "\\infty cannot be evaluated as a finite number."
-                    );
-
-            default ->
-                    throw new IllegalArgumentException(
-                            "Unknown constant: \\" + constant.name()
-                    );
-        };
-    }
-
-    private double evaluateUnary(
-            UnaryExpression expression,
-            Map<String, Double> variables
-    ) {
-        double value = evaluate(
-                expression.operand(),
-                variables
-        );
-
-        return switch (expression.operator()) {
-            case NEGATE -> -value;
-            case PERCENT -> value / 100.0;
-            case FACTORIAL -> factorial(value);
-        };
-    }
-
-    private double evaluateBinary(
-            BinaryExpression expression,
-            Map<String, Double> variables
-    ) {
-        double left = evaluate(expression.left(), variables);
-        double right = evaluate(expression.right(), variables);
-
-        return switch (expression.operator()) {
-            case ADD -> left + right;
-            case SUBTRACT -> left - right;
-            case MULTIPLY -> left * right;
-            case DIVIDE -> left / right;
-            case POWER -> Math.pow(left, right);
-        };
-    }
-
-    private double evaluateFunction(
-            FunctionExpression expression,
-            Map<String, Double> variables
-    ) {
-        String name = expression.name();
-
-        double[] arguments = expression.arguments()
-                .stream()
-                .mapToDouble(argument ->
-                        evaluate(argument, variables))
-                .toArray();
-
+    private static Double namedConstant(String name) {
         return switch (name) {
-            case "sin" -> unary(name, arguments, Math::sin);
-            case "cos" -> unary(name, arguments, Math::cos);
-            case "tan" -> unary(name, arguments, Math::tan);
-
-            case "cot" ->
-                    1.0 / unary(name, arguments, Math::tan);
-
-            case "sec" ->
-                    1.0 / unary(name, arguments, Math::cos);
-
-            case "csc" ->
-                    1.0 / unary(name, arguments, Math::sin);
-
-            case "asin", "arcsin" ->
-                    unary(name, arguments, Math::asin);
-
-            case "acos", "arccos" ->
-                    unary(name, arguments, Math::acos);
-
-            case "atan", "arctan" ->
-                    unary(name, arguments, Math::atan);
-
-            case "sinh" ->
-                    unary(name, arguments, Math::sinh);
-
-            case "cosh" ->
-                    unary(name, arguments, Math::cosh);
-
-            case "tanh" ->
-                    unary(name, arguments, Math::tanh);
-
-            case "sqrt" ->
-                    unary(name, arguments, Math::sqrt);
-
-            case "abs" ->
-                    unary(name, arguments, Math::abs);
-
-            case "exp" ->
-                    unary(name, arguments, Math::exp);
-
-            case "ln" ->
-                    unary(name, arguments, Math::log);
-
-            case "log" ->
-                    evaluateLog(arguments);
-
-            case "root" ->
-                    evaluateRoot(arguments);
-
-            default ->
-                    throw new IllegalArgumentException(
-                            "Unknown function: \\" + name
-                    );
+            case "pi", "PI", "\u03C0" -> Math.PI;
+            case "e" -> Math.E;
+            case "tau" -> 2 * Math.PI;
+            case "phi" -> (1 + Math.sqrt(5)) / 2;
+            case "infty" -> Double.POSITIVE_INFINITY;
+            default -> null;
         };
     }
 
-    private double evaluateLog(double[] arguments) {
-        if (arguments.length == 1) {
-            return Math.log10(arguments[0]);
+    private static double factorial(double value) {
+        if (value < 0 || value != Math.rint(value)) {
+            throw new MathDomainException("factorial domain error: argument must be a non-negative integer");
         }
-
-        if (arguments.length == 2) {
-            return Math.log(arguments[0])
-                    / Math.log(arguments[1]);
+        if (value > 170) {
+            throw new MathDomainException("factorial overflow: argument must be at most 170");
         }
-
-        throw new IllegalArgumentException(
-                "\\log expects one argument or two arguments."
-        );
-    }
-
-    private double evaluateRoot(double[] arguments) {
-        if (arguments.length != 2) {
-            throw new IllegalArgumentException(
-                    "\\sqrt with an index expects two arguments."
-            );
-        }
-
-        return Math.pow(
-                arguments[0],
-                1.0 / arguments[1]
-        );
-    }
-
-    private double unary(
-            String name,
-            double[] arguments,
-            DoubleUnaryOperator function
-    ) {
-        if (arguments.length != 1) {
-            throw new IllegalArgumentException(
-                    "\\" + name + " expects one argument."
-            );
-        }
-
-        return function.applyAsDouble(arguments[0]);
-    }
-
-    private double factorial(double value) {
-        if (value < 0 || value != Math.floor(value)) {
-            throw new IllegalArgumentException(
-                    "Factorial requires a non-negative integer."
-            );
-        }
-
-        double result = 1.0;
-
-        for (int i = 2; i <= (int) value; i++) {
-            result *= i;
-        }
-
+        double result = 1;
+        for (int i = 2; i <= (int) value; i++) result *= i;
         return result;
+    }
+
+    private double evaluateFunction(FunctionExpression function, Map<String, Double> vars) {
+        String name = function.name();
+        List<Expression> args = function.arguments();
+
+        if (name.equals("sum")) return sum(args, vars);
+        if (name.equals("int")) return integrate(args, vars);
+        if (name.equals("dv")) return differentiate(args, vars);
+
+        double[] values = new double[args.size()];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = evaluate(args.get(i), vars);
+        }
+        return apply(name, values);
+    }
+
+    private double sum(List<Expression> args, Map<String, Double> vars) {
+        String varName = variableName(args.get(1));
+        long lower = Math.round(evaluate(args.get(2), vars));
+        long upper = Math.round(evaluate(args.get(3), vars));
+        if (upper - lower > 10_000_000L) throw new MathDomainException("sum range too large");
+
+        Map<String, Double> scope = new HashMap<>(vars);
+        double total = 0;
+        for (long i = lower; i <= upper; i++) {
+            scope.put(varName, (double) i);
+            total += evaluate(args.get(0), scope);
+        }
+        return total;
+    }
+
+    private double integrate(List<Expression> args, Map<String, Double> vars) {
+        String varName = variableName(args.get(1));
+        double lower = evaluate(args.get(2), vars);
+        double upper = evaluate(args.get(3), vars);
+        int n = 1000;
+        double h = (upper - lower) / n;
+
+        Map<String, Double> scope = new HashMap<>(vars);
+        scope.put(varName, lower);
+        double sum = evaluate(args.get(0), scope);
+
+        scope.put(varName, upper);
+        sum += evaluate(args.get(0), scope);
+
+        for (int i = 1; i < n; i++) {
+            scope.put(varName, lower + i * h);
+            sum += (i % 2 == 0 ? 2 : 4) * evaluate(args.get(0), scope);
+        }
+        return (h / 3.0) * sum;
+    }
+
+    private double differentiate(List<Expression> args, Map<String, Double> vars) {
+        String varName = variableName(args.get(1));
+        double x;
+        if (args.size() > 2) {
+            x = evaluate(args.get(2), vars);
+        } else {
+            Double at = vars.get(varName);
+            if (at == null) throw new RuntimeException("Undefined variable: " + varName);
+            x = at;
+        }
+
+        double h = 1e-5 * Math.max(1.0, Math.abs(x));
+        Map<String, Double> forward = new HashMap<>(vars);
+        Map<String, Double> backward = new HashMap<>(vars);
+        forward.put(varName, x + h);
+        backward.put(varName, x - h);
+        return (evaluate(args.get(0), forward) - evaluate(args.get(0), backward)) / (2 * h);
+    }
+
+    private static String variableName(Expression expr) {
+        if (expr instanceof VariableExpression variable) return variable.name();
+        throw new IllegalArgumentException("Expected a variable name");
+    }
+
+    private static void requireArgs(String name, double[] values, int count) {
+        if (values.length != count) {
+            throw new MathDomainException(name + " expects " + count + " argument(s)");
+        }
+    }
+
+    private double apply(String name, double[] values) {
+        if (UNARY_FUNCTIONS.contains(name)) {
+            requireArgs(name, values, 1);
+            return applyUnary(name, values[0]);
+        }
+
+        if (name.equals("log")) {
+            if (values.length == 1) {
+                if (values[0] <= 0.0) {
+                    throw new MathDomainException("log domain error: argument must be greater than 0");
+                }
+                return Math.log10(values[0]);
+            }
+            requireArgs(name, values, 2);
+            if (values[0] <= 0.0 || values[1] <= 0.0 || values[1] == 1.0) {
+                throw new MathDomainException("log domain error: argument must be > 0 and base must be > 0 and not 1");
+            }
+            return Math.log(values[0]) / Math.log(values[1]);
+        }
+
+        if (name.equals("root")) {
+            requireArgs(name, values, 2);
+            double value = values[0];
+            double index = values[1];
+            if (index == 0.0) throw new MathDomainException("root index cannot be 0");
+            if (value < 0.0) {
+                boolean oddInteger = index == Math.rint(index) && Math.abs(index % 2) == 1;
+                if (!oddInteger) {
+                    throw new MathDomainException("root domain error: negative argument needs an odd integer index");
+                }
+                return -Math.pow(-value, 1.0 / index);
+            }
+            return Math.pow(value, 1.0 / index);
+        }
+
+        throw new RuntimeException("Unknown function: " + name);
+    }
+
+    private double applyUnary(String name, double x) {
+        return switch (name) {
+            case "sin" -> Math.sin(x);
+            case "cos" -> Math.cos(x);
+            case "tan" -> Math.tan(x);
+            case "cot" -> {
+                double t = Math.tan(x);
+                if (t == 0.0) throw new MathDomainException("cot domain error: tan(x) = 0");
+                yield 1.0 / t;
+            }
+            case "sec" -> {
+                double c = Math.cos(x);
+                if (c == 0.0) throw new MathDomainException("sec domain error: cos(x) = 0");
+                yield 1.0 / c;
+            }
+            case "csc" -> {
+                double s = Math.sin(x);
+                if (s == 0.0) throw new MathDomainException("csc domain error: sin(x) = 0");
+                yield 1.0 / s;
+            }
+            case "asin", "arcsin" -> {
+                if (x < -1.0 || x > 1.0) {
+                    throw new MathDomainException("asin domain error: argument must be between -1 and 1");
+                }
+                yield Math.asin(x);
+            }
+            case "acos", "arccos" -> {
+                if (x < -1.0 || x > 1.0) {
+                    throw new MathDomainException("acos domain error: argument must be between -1 and 1");
+                }
+                yield Math.acos(x);
+            }
+            case "atan", "arctan" -> Math.atan(x);
+            case "sinh" -> Math.sinh(x);
+            case "cosh" -> Math.cosh(x);
+            case "tanh" -> Math.tanh(x);
+            case "exp" -> Math.exp(x);
+            case "ln" -> {
+                if (x <= 0.0) {
+                    throw new MathDomainException("ln domain error: argument must be greater than 0");
+                }
+                yield Math.log(x);
+            }
+            case "sqrt" -> {
+                if (x < 0.0) {
+                    throw new MathDomainException("sqrt domain error: argument must be greater than or equal to 0");
+                }
+                yield Math.sqrt(x);
+            }
+            case "abs" -> Math.abs(x);
+            default -> throw new RuntimeException("Unknown function: " + name);
+        };
     }
 }

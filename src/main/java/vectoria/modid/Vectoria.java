@@ -1,6 +1,7 @@
 package vectoria.modid;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,8 +13,10 @@ public class Vectoria implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		VectoriaCommand.register();
-		LOGGER.info("Vectoria initialized.");
+		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+			VectoriaCommand.register(dispatcher);
+		});
+		LOGGER.info("Vectoria math engine initialized successfully.");
 	}
 
 	public static Identifier id(String path) {
